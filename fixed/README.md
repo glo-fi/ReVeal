@@ -1,0 +1,1 @@
+I'm sure there's some better way of doing this, but I plan on rebuilding the repo in this subdirectory with a proper structure and just generally improving things as I go. 
