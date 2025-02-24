@@ -34,13 +34,7 @@ def main():
             negative_batch=x_n)
         repr = representation.detach().cpu().numpy()
         prediction_classes = np.argmax(prediction_prob.detach().cpu().numpy(), axis=-1)
-        # print(
-        #     "Epoch %3d, Loss: %10.4f, Accuracy: %5.2f, Precision: %5.2f, Recall: %5.2f, F1: %5.2f" % (
-        #         epoch, batch_loss.detach().cpu().item(),
-        #         acc(targets, prediction_classes), pr(targets, prediction_classes),
-        #         rc(targets, prediction_classes), f1(targets, prediction_classes)
-        #     )
-        # )
+
         if epoch % 1 == 0:
             prediction_prob, representation, batch_loss = model(
                 example_batch=test_x,
