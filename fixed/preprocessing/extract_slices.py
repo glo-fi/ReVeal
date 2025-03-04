@@ -1,8 +1,20 @@
-import clang
+import os
 import csv
+import nltk
+import json
+import tqdm
 import utils
-from l_funcs import l_funcs
-from tokenizer import tokenize
+import clang
+import l_funcs
+import numpy as np
+from graphviz import Digraph
+from gensim.models import Word2Vec
+from tokenizer import tokenize, symbolic_tokenize
+
+
+##################################
+######### Helper Methods #########
+##################################
 
 def set_clang_config():
     try:
@@ -10,7 +22,8 @@ def set_clang_config():
     except Exception as e:
         print(f"[!] Clang library path not found: {e}")
     try:
-        clang.cindex.Config.set_library_file('/usr/lib/x86_64-linux-gnu/libclang-6.0.so.1')
+        clang.cindex.Config.set_library_file('''/usr/lib/
+                                             x86_64-linux-gnu/libclang-6.0.so.1''')
     except Exception as e:
         print(f"[!] Clang library file not found: {e}")
 
@@ -54,7 +67,8 @@ def extract_nodes_with_location_info(nodes):
             # If the location field is an empty string, skip this node
             if location == '':
                 continue
-            # Extract the line number from the location, which is the part before ':'
+            # Extract the line number from the location, 
+            # which is the part before ':'
             line_num = int(location.split(':')[0])
             # Retrieve and strip the node ID from the 'key' field
             node_id = node['key'].strip()
@@ -68,10 +82,11 @@ def extract_nodes_with_location_info(nodes):
     # Return the four items in a tuple
     return node_indices, node_ids, line_numbers, node_id_to_line_number
 
-    pass  # This pass statement is redundant but harmless
 
-
-def create_adjacency_list(line_numbers, node_id_to_line_numbers, edges, data_dependency_only=False):
+def create_adjacency_list(line_numbers, 
+                          node_id_to_line_numbers, 
+                          edges, 
+                          data_dependency_only=False):
     """
     Creates an adjacency list for control flow and data flow based on the provided edges.
     
@@ -264,6 +279,104 @@ def create_backward_slice(adjacency_list, line_no):
     # Perform a forward slice on the inverted graph to get all lines that can
     # eventually lead to the specified line_no in the original graph
     return create_forward_slice(inverted_adjacency_list, line_no)
+
+def extract_slices(code_with_lines, list_of_slices):
+    sliced_codes = []
+    for slice in list_of_slices:
+        tokenized = []
+        for ln in slice:
+            code = code_with_lines[ln]
+            tokenized.append(symbolic_tokenize(code))
+        sliced_codes.append(' '.join(tokenized))
+    return sliced_codes
+
+def unify_slices(list_of_list_of_slices):
+    taken_slice = set()
+    unique_slice_lines = []
+    for list_of_slices in list_of_list_of_slices:
+        for slice in list_of_slices:
+            slice_id = str(slice)
+            if slice_id not in taken_slice:
+                unique_slice_lines.append(slice)
+                taken_slice.add(slice_id)
+    return unique_slice_lines
+
+def reformat_code_line_graph(code_lines, adjacency_lists, lanel, wv_model_original, wv_model_li, label):
+    actual_lines = []
+    for ln in adjacency_lists.keys():
+        cd, dd = adjacency_lists[ln]
+        new_cd = [l for l in cd]
+        new_dd = [l for l in dd] 
+        actual_lines.extend(new_cd)
+        actual_lines.extend(new_dd)
+        actual_lines.append(ln)
+    actual_lines = sorted(list(set(actual_lines)))
+    line_no_to_idx = {}
+    idx_to_line_no = {}
+    for idx, ln in enumerate(actual_lines):
+        line_no_to_idx[ln] = idx
+        idx_to_line_no[idx] = ln
+    data_point = {}
+    graph = []
+    for src in adjacency_lists.keys():
+        cd, dd = adjacency_lists[src]
+        for dest in cd:
+            graph.append([line_no_to_idx[src], 0, line_no_to_idx[dest]])
+            graph.append([line_no_to_idx[dest], 1, line_no_to_idx[src]])
+        for dest in dd:
+            graph.append([line_no_to_idx[src], 2, line_no_to_idx[dest]])
+            graph.append([line_no_to_idx[dest], 3, line_no_to_idx[src]])
+    original_tokens = []
+    symbolic_tokens = []
+    line_features_wv = []
+    sym_line_features_wv = []
+    
+    for lidx in range(len(idx_to_line_no.keys())):
+        actual_code_line = code_lines[idx_to_line_no[lidx]]
+        actual_line_tokens = nltk.wordpunct_tokenize(actual_code_line)
+        symbolic_line_tokens = symbolic_tokenize(actual_code_line).split()
+        original_tokens.append(actual_line_tokens)
+        symbolic_tokens.append(symbolic_line_tokens)
+        
+        nrp = np.zeros(100)
+        for token in actual_line_tokens:
+            try:
+                embedding = wv_model_original.wv[token]
+            except:
+                embedding = np.zeros(100)
+            nrp = np.add(nrp, embedding)
+        if len(actual_line_tokens) > 0:
+            fNrp = np.divide(nrp, len(actual_line_tokens))
+        else:
+            fNrp = nrp
+        line_features_wv.append(fNrp.tolist())
+        
+        nrp = np.zeros(64)
+        for token in symbolic_line_tokens:
+            try:
+                embedding = wv_model_li.wv[token]
+            except:
+                embedding = np.zeros(64)
+            nrp = np.add(nrp, embedding)
+        if len(actual_line_tokens) > 0:
+            fNrp = np.divide(nrp, len(symbolic_line_tokens))
+        else:
+            fNrp = nrp
+        sym_line_features_wv.append(fNrp.tolist())
+    data_point = {
+        'node_features': line_features_wv,
+        'node_features_sym': sym_line_features_wv,
+        'graph': graph,
+        'original_tokens': original_tokens,
+        'symbolic_tokens': symbolic_tokens,
+        'targets': [[label]]
+    }
+    return data_point
+
+############################################
+############### Main Methods ###############
+############################################
+
 
 def process_slices(files,  split_dir, parsed):
     # Note: This code snippet iterates over a list of file names. For each file, 
@@ -497,3 +610,196 @@ def process_slices(files,  split_dir, parsed):
                 sep='\t'
             )
     return all_data
+
+
+def inputGeneration(nodeCSV, edgeCSV, target, wv, edge_type_map, cfg_only=False):
+    gInput = dict()
+    gInput["targets"] = list()
+    gInput["graph"] = list()
+    gInput["node_features"] = list()
+    gInput["targets"].append([target])
+    with open(nodeCSV, 'r') as nc:
+        nodes = csv.DictReader(nc, delimiter='\t')
+        nodeMap = dict()
+        allNodes = {}
+        node_idx = 0
+        for idx, node in enumerate(nodes):
+            cfgNode = node['isCFGNode'].strip()
+            if not cfg_only and (cfgNode == '' or cfgNode == 'False'):
+                continue
+            nodeKey = node['key']
+            node_type = node['type']
+            if node_type == 'File':
+                continue
+            node_content = node['code'].strip()
+            node_split = nltk.word_tokenize(node_content)
+            nrp = np.zeros(100)
+            for token in node_split:
+                try:
+                    embedding = wv.wv[token]
+                except:
+                    embedding = np.zeros(100)
+                nrp = np.add(nrp, embedding)
+            if len(node_split) > 0:
+                fNrp = np.divide(nrp, len(node_split))
+            else:
+                fNrp = nrp
+            node_feature = l_funcs.type_one_hot[l_funcs.type_map[node_type] - 1].tolist()
+            node_feature.extend(fNrp.tolist())
+            allNodes[nodeKey] = node_feature
+            nodeMap[nodeKey] = node_idx
+            node_idx += 1
+        if node_idx == 0 or node_idx >= 500:
+            return None
+        all_nodes_with_edges = set()
+        trueNodeMap = {}
+        all_edges = []
+        with open(edgeCSV, 'r') as ec:
+            reader = csv.DictReader(ec, delimiter='\t')
+            for e in reader:
+                start, end, eType = e["start"], e["end"], e["type"]
+                if eType != "IS_FILE_OF":
+                    if not start in nodeMap or not end in nodeMap or not eType in edge_type_map:
+                        continue
+                    all_nodes_with_edges.add(start)
+                    all_nodes_with_edges.add(end)
+                    edge = [start, edge_type_map[eType], end]
+                    all_edges.append(edge)
+        if len(all_edges) == 0:
+            return None
+        for i, node in enumerate(all_nodes_with_edges):
+            trueNodeMap[node] = i
+            gInput["node_features"].append(allNodes[node])
+        for edge in all_edges:
+            start, t, end = edge
+            start = trueNodeMap[start]
+            end = trueNodeMap[end]
+            e = [start, t, end]
+            gInput["graph"].append(e)
+    return gInput
+
+def applyInputGeneration(project_name: str, w2v_path: str, csv_dir: str, output_dir: str):
+    json_file_path = '../data/' + project_name + '_full_data_with_slices.json' # Ew, and I don't have this JSON (I think)
+    data = json.load(open(json_file_path))
+    model = Word2Vec.load(w2v_path)
+    final_data = []
+    v, nv, vd_present, syse_present, cg_present, dg_present, cdg_present = 0, 0, 0, 0, 0, 0, 0
+    data_shard = 1
+    for didx, entry in enumerate(tqdm(data)):
+        file_name = entry['file_path'].split('/')[-1]
+        nodes_path = os.path.join(csv_dir, file_name, 'nodes.csv')
+        edges_path = os.path.join(csv_dir, file_name, 'edges.csv')
+        label = int(entry['label'])
+        if not os.path.exists(nodes_path) or not os.path.exists(edges_path):
+            continue
+        linized_code = {}
+        for ln, code in enumerate(entry['code'].split('\n')):
+            linized_code[ln + 1] = code
+        vuld_slices = extract_slices(linized_code, entry['call_slices_vd'])
+        syse_slices = extract_slices(
+            linized_code, unify_slices(
+                [entry['call_slices_sy'], entry['array_slices_sy'], entry['arith_slices_sy'], entry['ptr_slices_sy']]
+            )
+        )
+        graph_input_full = inputGeneration(
+            nodes_path, edges_path, label, model, l_funcs.edgeType_full, False)
+        graph_input_control = inputGeneration(
+            nodes_path, edges_path, label, model, l_funcs.edgeType_control, True)
+        graph_input_data = inputGeneration(nodes_path, edges_path, label, model, l_funcs.edgeType_data, True)
+        graph_input_cd = inputGeneration(
+            nodes_path, edges_path, label, model, l_funcs.edgeType_control_data, True)
+        draper_code = entry['tokenized']
+        if graph_input_full is None:
+            continue
+        if label == 1:
+            v += 1
+        else:
+            nv += 1
+        if len(vuld_slices) > 0: vd_present += 1
+        if len(syse_slices) > 0: syse_present += 1
+        if graph_input_control is not None: cg_present += 1
+        if graph_input_data is not None: dg_present += 1
+        if graph_input_cd is not None: cdg_present += 1
+        data_point = {
+            'id': didx,
+            'file_name': file_name, 'file_path': os.path.abspath(entry['file_path']),
+            'code': entry['code'],
+            'vuld': vuld_slices, 'vd_present': 1 if len(vuld_slices) > 0 else 0,
+            'syse': syse_slices, 'syse_present': 1 if len(syse_slices) > 0 else 0,
+            'draper': draper_code,
+            'full_graph': graph_input_full,
+            'cgraph': graph_input_control,
+            'dgraph': graph_input_data,
+            'cdgraph': graph_input_cd,
+            'label': int(entry['label'])
+        }
+        final_data.append(data_point)
+        if len(final_data) == 5000:
+            output_path = output_dir + '.shard' + str(data_shard)
+            with open(output_path, 'w') as fp:
+                json.dump(final_data, fp)
+                fp.close()
+            print('Saved Shard %d to %s' % (data_shard, output_path), '=' * 100, 'Done', sep='\n')
+            final_data = []
+            data_shard += 1
+    print("Vulnerable:\t%d\n"
+          "Non-Vul:\t%d\n"
+          "VulDeePecker:\t%d\n"
+          "SySeVr:\t%d\n"
+          "Control: %d\tData: %d\tBoth: %d" % \
+          (v, nv, vd_present, syse_present, cg_present, dg_present, cdg_present))
+    output_path = output_dir + '.shard' + str(data_shard)
+    with open(output_path, 'w') as fp:
+        json.dump(final_data, fp)
+        fp.close()
+    print('Saved Shard %d to %s' % (data_shard, output_path), '=' * 100, 'Done', sep='\n')
+
+def extract_line_graph_data(
+    project, base_dir='../data/full_experiment_real_data/', 
+    output_dir='../data/full_experiment_real_data_processed/'):
+    if project == 'devign':
+        split_dir = '../data/neurips_parsed/neurips_data/'
+        parsed = '../data/neurips_parsed/parsed_results/'
+        wv_path = '../data/neurips_parsed/raw_code_neurips.100'
+        wv_model_original = Word2Vec.load(wv_path)
+    else:
+        split_dir = '../data/chrome_debian/raw_code/'
+        parsed = '../data/chrome_debian/parsed/'
+        wv_path = '../data/chrome_debian/raw_code_deb_chro.100'
+        wv_model_original = Word2Vec.load(wv_path)
+    shards = os.listdir(os.path.join(base_dir, project))
+    shard_count = len(shards)
+    total_functions, in_scope_function = set(), set()
+    vnt, nvnt = 0, 0
+    graphs = []
+    for sc in range(1, shard_count + 1):
+        shard_file = open(os.path.join(base_dir, project, project + '.json.shard' + str(sc)))
+        shard_data = json.load(shard_file)
+        try:
+            for data in tqdm(shard_data):
+                file_name = data['file_name']    
+                label = int(file_name.strip()[:-2].split('_')[-1])
+                code_text = utils.read_code_file(split_dir + file_name.strip())
+                nodes_file_path = parsed + file_name.strip() + '/nodes.csv'
+                edges_file_path = parsed + file_name.strip() + '/edges.csv'
+                nc = open(nodes_file_path)
+                nodes_file = csv.DictReader(nc, delimiter='\t')
+                nodes = [node for node in nodes_file]
+                if len(nodes) == 0:
+                    continue
+                nodes = utils.read_csv(nodes_file_path)
+                edges = utils.read_csv(edges_file_path)
+                node_indices, node_ids, line_numbers, node_id_to_ln = extract_nodes_with_location_info(nodes)
+                adjacency_list = create_adjacency_list(line_numbers, node_id_to_ln, edges, False)
+                combined_graph = combine_control_and_data_adjacents(adjacency_list)
+                data_point = reformat_code_line_graph(code_text, adjacency_list, label, wv_model_original, wv_model_li, label)
+                graphs.append(data_point)
+        finally:
+            pass
+        del shard_data
+    output_file = open(os.path.join(output_dir, project + '-line-ggnn.json'), 'w')
+    json.dump(graphs, output_file)
+    output_file.close()
+    print(len(graphs))
+#     return graphs
+            

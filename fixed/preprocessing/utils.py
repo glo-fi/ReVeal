@@ -1,3 +1,6 @@
+import os
+import shutil
+
 def read_csv(csv_file_path):
     """
     Reads a tab-delimited CSV file from the specified file path and returns a list of dictionaries.
@@ -113,3 +116,28 @@ def extract_line_number(idx, nodes):
     
     # If no valid location was found, return -1
     return -1
+
+def checkVul(cFile):
+    with open(cFile, 'r') as f:
+        fileString = f.read()
+        return (1 if "BUFWRITE_COND_UNSAFE" in fileString or "BUFWRITE_TAUT_UNSAFE" in fileString else 0)
+
+def rename_sysevr_nvd_files(input_directory, output_directory):
+    for idx, filename in enumerate(os.listdir(input_directory)):
+        full_path = os.path.join(input_directory, filename)
+        if os.path.isfile(full_path):
+            if "VULN" in filename:
+                output_file = os.path.join(output_directory, f"{idx}_1.c")
+            elif "PATCHED" in filename:
+                output_file = os.path.join(output_directory, f"{idx}_0.c")
+            shutil.copy(full_path, output_file)
+
+def files_to_list(directory):
+    output_list = []
+    for filename in os.listdir(directory):
+        output_list.append(os.path.splitext(filename)[0])
+    return output_list
+
+if __name__ == "__main__":
+    rename_sysevr_nvd_files("/home/rob/Documents/PhD/Work/MyReVeal/ReVeal/code-slicer/joern/raw_code",
+                            "/home/rob/Documents/PhD/Work/MyReVeal/ReVeal/code-slicer/joern/renamed_code")

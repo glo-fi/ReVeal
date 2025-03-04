@@ -1,3 +1,5 @@
+import numpy as np
+
 l_funcs = ['StrNCat', 'getaddrinfo', '_ui64toa', 'fclose', 'pthread_mutex_lock', 'gets_s', 'sleep', 
            '_ui64tot', 'freopen_s', '_ui64tow', 'send', 'lstrcat', 'HMAC_Update', '__fxstat', 'StrCatBuff', 
            '_mbscat', '_mbstok_s', '_cprintf_s', 'ldap_search_init_page', 'memmove_s', 'ctime_s', 'vswprintf', 
@@ -125,3 +127,77 @@ l_funcs = ['StrNCat', 'getaddrinfo', '_ui64toa', 'fclose', 'pthread_mutex_lock',
            'OleDbCommand.ExecuteScalar', 'stdin', 'SqlDataSource.Delete', 'OleDbDataAdapter.Fill', 'fstream.putback', 
            'IDbDataAdapter.Fill', '_wspawnl', 'fwprintf', 'sem_wait', '_unlink', 'ldap_search_ext_sW', 'signal', 'PQclear', 
            'PQfinish', 'PQexec', 'PQresultStatus']
+
+
+keywords = ["alignas", "alignof", "and", "and_eq", "asm", "atomic_cancel", "atomic_commit",
+            "atomic_noexcept", "auto", "bitand", "bitor", "bool", "break", "case", "catch",
+            "char", "char8_t", "char16_t", "char32_t", "class", "compl", "concept", "const",
+            "consteval", "constexpr", "constinit", "const_cast", "continue", "co_await",
+            "co_return", "co_yield", "decltype", "default", "delete", "do", "double", "dynamic_cast",
+            "else", "enum", "explicit", "export", "extern", "false", "float", "for", "friend", "goto",
+            "if", "inline", "int", "long", "mutable", "namespace", "new", "noexcept", "not", "not_eq",
+            "nullptr", "operator", "or", "or_eq", "private", "protected", "public", "reflexpr",
+            "register", "reinterpret_cast", "requires", "return", "short", "signed", "sizeof", "static",
+            "static_assert", "static_cast", "struct", "switch", "synchronized", "template", "this",
+            "thread_local", "throw", "true", "try", "typedef", "typeid", "typename", "union", "unsigned",
+            "using", "virtual", "void", "volatile", "wchar_t", "while", "xor", "xor_eq", "NULL"]
+
+puncs = ["~", "`", "!", "@", "#", "$",
+         "%", "^", "&", "*", "(", ")",
+         "-", "+", "=", "{", "[", "]", 
+         "}", "|", "\\", ";", ":", "\'",
+         "\"", "<", ",", ">", ".", "?", "/"]
+
+type_map = {
+    'AndExpression': 1, 'Sizeof': 2, 'Identifier': 3, 'ForInit': 4, 'ReturnStatement': 5, 'SizeofOperand': 6,
+    'InclusiveOrExpression': 7, 'PtrMemberAccess': 8, 'AssignmentExpression': 9, 'ParameterList': 10,
+    'IdentifierDeclType': 11, 'SizeofExpression': 12, 'SwitchStatement': 13, 'IncDec': 14, 'Function': 15,
+    'BitAndExpression': 16, 'UnaryExpression': 17, 'DoStatement': 18, 'GotoStatement': 19, 'Callee': 20,
+    'OrExpression': 21, 'ShiftExpression': 22, 'Decl': 23, 'CFGErrorNode': 24, 'WhileStatement': 25,
+    'InfiniteForNode': 26, 'RelationalExpression': 27, 'CFGExitNode': 28, 'Condition': 29, 'BreakStatement': 30,
+    'CompoundStatement': 31, 'UnaryOperator': 32, 'CallExpression': 33, 'CastExpression': 34,
+    'ConditionalExpression': 35, 'ArrayIndexing': 36, 'PostIncDecOperationExpression': 37, 'Label': 38,
+    'ArgumentList': 39, 'EqualityExpression': 40, 'ReturnType': 41, 'Parameter': 42, 'Argument': 43, 'Symbol': 44,
+    'ParameterType': 45, 'Statement': 46, 'AdditiveExpression': 47, 'PrimaryExpression': 48, 'DeclStmt': 49,
+    'CastTarget': 50, 'IdentifierDeclStatement': 51, 'IdentifierDecl': 52, 'CFGEntryNode': 53, 'TryStatement': 54,
+    'Expression': 55, 'ExclusiveOrExpression': 56, 'ClassDef': 57, 'File': 58, 'UnaryOperationExpression': 59,
+    'ClassDefStatement': 60, 'FunctionDef': 61, 'IfStatement': 62, 'MultiplicativeExpression': 63,
+    'ContinueStatement': 64, 'MemberAccess': 65, 'ExpressionStatement': 66, 'ForStatement': 67, 'InitializerList': 68,
+    'ElseStatement': 69
+}
+
+type_one_hot = np.eye(len(type_map))
+
+edgeType_full = {
+    'IS_AST_PARENT': 1,
+    'IS_CLASS_OF': 2,
+    'FLOWS_TO': 3,
+    'DEF': 4,
+    'USE': 5,
+    'REACHES': 6,
+    'CONTROLS': 7,
+    'DECLARES': 8,
+    'DOM': 9,
+    'POST_DOM': 10,
+    'IS_FUNCTION_OF_AST': 11,
+    'IS_FUNCTION_OF_CFG': 12
+}
+
+edgeType_control = {
+    'FLOWS_TO': 3,  # Control Flow
+    'CONTROLS': 7,  # Control Dependency edge
+}
+
+edgeType_data = {
+    'DEF': 4,
+    'USE': 5,
+    'REACHES': 6,
+}
+
+edgeType_control_data = {
+    'DEF': 4,
+    'USE': 5,
+    'REACHES': 6,
+    'FLOWS_TO': 3,  # Control Flow
+    'CONTROLS': 7,  # Control Dependency edge
+}
