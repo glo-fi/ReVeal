@@ -1,7 +1,7 @@
 import re
 import nltk
 nltk.download('punkt_tab')
-import clang
+import clang.cindex
 from l_funcs import *
 
 class Tokenizer:
@@ -161,18 +161,17 @@ def tokenize(file_text):
     """
     try:
         # Write the provided source code to a temporary file
-        c_file = open('/tmp/test1.c', 'w')
-        c_file.write(file_text)
-        c_file.close()
+        with open('/tmp/test1.c', 'w') as c_file:
+            c_file.write(file_text)
 
         # Create a Tokenizer instance on that file
         tok = Tokenizer('/tmp/test1.c')
         # Split out functions (including normal function declarations)
         results = tok.split_functions(False)
-
         # Return a space-joined string of the first function's tokens, if any
-        return ' '.join(results[0])
-    except:
+        end_result = ' '.join(results[0])
+        return end_result
+    except Exception as e:
         # If something went wrong (no functions or parse issue), return None
         return None
 
