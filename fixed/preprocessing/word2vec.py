@@ -5,15 +5,15 @@ from gensim.models import Word2Vec
 from tokenizer import symbolic_tokenize
 
 # Constants for file processing
-UNFORMATTED_SUBDIR = 'renamed_code'
-FORMATTED_SUBDIR = 'json_code'
+UNFORMATTED_SUBDIR = 'raw_code'
+FORMATTED_SUBDIR = 'json_code_fq'
 MARKER = '-------------------------' 
 MIN_EXAMPLE_LINES = 3
 
 
 def w2v(data_paths, 
         save_model_dir, 
-        model_name='li_et_al_wv', 
+        model_name='fq_wv', 
         min_occ=1, 
         embedding_size=64, 
         epochs=5):

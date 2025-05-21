@@ -1,7 +1,10 @@
 import os
+import csv
+import tqdm
+import json
 import shutil
 
-def read_csv(csv_file_path):
+def read_csv_orig(csv_file_path, split='\t'):
     """
     Reads a tab-delimited CSV file from the specified file path and returns a list of dictionaries.
     Each dictionary in the returned list corresponds to one row of data. The first line of the file
@@ -18,11 +21,11 @@ def read_csv(csv_file_path):
     # Open the file in read mode
     with open(csv_file_path, 'r') as file_pointer:
         # Read the header line, strip whitespace, split by tabs, and strip each header name
-        headers = [column.strip() for column in file_pointer.readline().strip().split('\t')]
+        headers = [column.strip() for column in file_pointer.readline().strip().split(split)]
         # Iterate over each subsequent line in the file
         for line in file_pointer:
             # Strip whitespace and split the line by tabs
-            row_values = [value.strip() for value in line.strip().split('\t')]
+            row_values = [value.strip() for value in line.strip().split(split)]
             # Create a dictionary mapping each header to the corresponding value
             # If a row lacks a value for a header, use an empty string
             instance = {}
@@ -34,6 +37,41 @@ def read_csv(csv_file_path):
     
     # Return the final list containing data for every row
     return data
+
+def read_csv(csv_file_path, delimiter=','):
+    """
+    Reads a CSV file using Python's standard csv library, ensuring that column headers are stripped
+    of leading/trailing whitespace. Each row is returned as a dictionary keyed by those stripped headers.
+    
+    By default, assumes a tab-delimited file (delimiter='\\t').
+
+    Args:
+        csv_file_path (str): The path to the CSV file.
+        delimiter (str): The field delimiter (defaults to '\\t').
+
+    Returns:
+        list of dict: A list of dictionaries, each representing one row, keyed by stripped column header.
+    """
+    data = []
+    with open(csv_file_path, mode='r', newline='') as file_pointer:
+        # Read the *first line only* to extract/strip the headers manually
+        first_line = file_pointer.readline()
+        # Use csv.reader to parse that single line
+        raw_headers = next(csv.reader([first_line], delimiter=delimiter))
+        # Strip whitespace from each header
+        stripped_headers = [col.strip() for col in raw_headers]
+
+        # Now, create a DictReader for the *rest of the file*,
+        # supplying our own fieldnames (the stripped headers)
+        reader = csv.DictReader(file_pointer, fieldnames=stripped_headers, delimiter=delimiter)
+        
+        # DictReader will treat each subsequent line as data (not headers),
+        # mapping them to the stripped fieldnames.
+        for row in reader:
+            data.append(row)
+
+    return data
+
 
 def read_code_file(file_path):
     """
@@ -80,7 +118,7 @@ def read_file(path):
         return ' '.join(lines) # ??? Is this right?
 
 
-def extract_line_number(idx, nodes):
+def extract_line_number(idx, nodes, loc_key="location"):
     """
     Extracts a line number from a given list of node objects by searching backward from a specified index.
     
@@ -100,8 +138,8 @@ def extract_line_number(idx, nodes):
         # Retrieve the current node
         c_node = nodes[idx]
         # Check if 'location' exists in the node
-        if 'location' in c_node.keys():
-            location = c_node['location']
+        if loc_key in c_node.keys():
+            location = c_node[loc_key]
             # If location is not empty, try to parse it
             if location.strip() != '':
                 try:
@@ -138,6 +176,20 @@ def files_to_list(directory):
         output_list.append(os.path.splitext(filename)[0])
     return output_list
 
+def process_fq(filepath, output_directory):
+    with open(filepath, "r") as f:
+        func_list = json.load(f)
+        for idx, func in enumerate(tqdm.tqdm(func_list)):
+            func_body = func["func"]
+            func_label = func["target"]
+            output_file = os.path.join(output_directory, f"{idx}_{func_label}.c")
+            with open(output_file, "w+") as of:
+                of.write(func_body) 
+
+
+
 if __name__ == "__main__":
-    rename_sysevr_nvd_files("/home/rob/Documents/PhD/Work/MyReVeal/ReVeal/code-slicer/joern/raw_code",
-                            "/home/rob/Documents/PhD/Work/MyReVeal/ReVeal/code-slicer/joern/renamed_code")
+    process_fq("/home/rob/Documents/PhD/Work/MyReVeal/ReVeal/fixed/data/raw/ffmpeg_qemu/function.json",
+               "/home/rob/Documents/PhD/Work/MyReVeal/ReVeal/fixed/data/processed/fq")
+    #rename_sysevr_nvd_files("/home/rob/Documents/PhD/Work/MyReVeal/ReVeal/code-slicer/joern/raw_code",
+    #                        "/home/rob/Documents/PhD/Work/MyReVeal/ReVeal/code-slicer/joern/renamed_code")

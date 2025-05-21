@@ -149,43 +149,117 @@ puncs = ["~", "`", "!", "@", "#", "$",
          "\"", "<", ",", ">", ".", "?", "/"]
 
 type_map = {
-    'AndExpression': 1, 'Sizeof': 2, 'Identifier': 3, 'ForInit': 4, 'ReturnStatement': 5, 'SizeofOperand': 6,
-    'InclusiveOrExpression': 7, 'PtrMemberAccess': 8, 'AssignmentExpression': 9, 'ParameterList': 10,
-    'IdentifierDeclType': 11, 'SizeofExpression': 12, 'SwitchStatement': 13, 'IncDec': 14, 'Function': 15,
-    'BitAndExpression': 16, 'UnaryExpression': 17, 'DoStatement': 18, 'GotoStatement': 19, 'Callee': 20,
-    'OrExpression': 21, 'ShiftExpression': 22, 'Decl': 23, 'CFGErrorNode': 24, 'WhileStatement': 25,
-    'InfiniteForNode': 26, 'RelationalExpression': 27, 'CFGExitNode': 28, 'Condition': 29, 'BreakStatement': 30,
-    'CompoundStatement': 31, 'UnaryOperator': 32, 'CallExpression': 33, 'CastExpression': 34,
-    'ConditionalExpression': 35, 'ArrayIndexing': 36, 'PostIncDecOperationExpression': 37, 'Label': 38,
-    'ArgumentList': 39, 'EqualityExpression': 40, 'ReturnType': 41, 'Parameter': 42, 'Argument': 43, 'Symbol': 44,
-    'ParameterType': 45, 'Statement': 46, 'AdditiveExpression': 47, 'PrimaryExpression': 48, 'DeclStmt': 49,
-    'CastTarget': 50, 'IdentifierDeclStatement': 51, 'IdentifierDecl': 52, 'CFGEntryNode': 53, 'TryStatement': 54,
-    'Expression': 55, 'ExclusiveOrExpression': 56, 'ClassDef': 57, 'File': 58, 'UnaryOperationExpression': 59,
-    'ClassDefStatement': 60, 'FunctionDef': 61, 'IfStatement': 62, 'MultiplicativeExpression': 63,
-    'ContinueStatement': 64, 'MemberAccess': 65, 'ExpressionStatement': 66, 'ForStatement': 67, 'InitializerList': 68,
-    'ElseStatement': 69
+    'AndExpression': 1, # Call -> name = <operator>.and
+    'Sizeof': 2,
+    'Identifier': 3,  # Identifier
+    'ForInit': 4,
+    'ReturnStatement': 5, # MethodReturn/Return
+    'SizeofOperand': 6,
+    'InclusiveOrExpression': 7,
+    'PtrMemberAccess': 8, # Call -> name = <operator>.indirectFieldAccess
+    'AssignmentExpression': 9, # Call -> name = <operator>.assignment
+    'ParameterList': 10, 
+    'IdentifierDeclType': 11, # TypeDecl
+    'SizeofExpression': 12,
+    'SwitchStatement': 13, #ControlStructure -> controlStructureType = "SWITCH" (Guess)
+    'IncDec': 14,
+    'Function': 15,
+    'BitAndExpression': 16,
+    'UnaryExpression': 17,
+    'DoStatement': 18,
+    'GotoStatement': 19,
+    'Callee': 20,
+    'OrExpression': 21, # Call -> name = <operator>.assignmentOr/logicalOr
+    'ShiftExpression': 22, # Call -> name = <operator>.arithmeticShiftRight/shiftLeft
+    'Decl': 23, 'CFGErrorNode': 24, 
+    'WhileStatement': 25,  #ControlStructure -> controlStructureType = "WHILE" (Guess)
+    'InfiniteForNode': 26, 'RelationalExpression': 27, 'CFGExitNode': 28, 'Condition': 29, 
+    'BreakStatement': 30, #ControlStructure -> controlStructureType = "BREAK"
+    'CompoundStatement': 31, 'UnaryOperator': 32, 'CallExpression': 33, # Call -> name does not contain <operator> (Possibly?)
+    'CastExpression': 34, # Call ->  name = <operator>.cast
+    'ConditionalExpression': 35, 'ArrayIndexing': 36, 
+    'PostIncDecOperationExpression': 37, # Call -> name = <operator>.postIncrement
+    'Label': 38,
+    'ArgumentList': 39, 
+    'EqualityExpression': 40, # Call -> name = <operator>.equals
+    'ReturnType': 41, # MethodReturn/Return
+    'Parameter': 42, #  MethodParameterIn/MethodParameterOut
+    
+    'Argument': 43, 'Symbol': 44,
+    'ParameterType': 45, # Type?
+    'Statement': 46, 'AdditiveExpression': 47, 'PrimaryExpression': 48, 'DeclStmt': 49,
+    'CastTarget': 50, 'IdentifierDeclStatement': 51, 'IdentifierDecl': 52, 'CFGEntryNode': 53, 
+    'TryStatement': 54, #ControlStructure -> controlStructureType = "TRY" (Guess)
+    'Expression': 55, 'ExclusiveOrExpression': 56, 'ExlusiveOrExpression': 56, 'ClassDef': 57, 'File': 58, 'UnaryOperationExpression': 59,
+    'UnaryOperatorExpression': 59,
+    'ClassDefStatement': 60, 'FunctionDef': 61, 'IfStatement': 62, #ControlStructure -> controlStructureType = "IF"
+    'MultiplicativeExpression': 63, # (numerical operators handled differently) Call -> name = <operator>.division/addition/multiplication/subtraction/lessThan (?)
+    'ContinueStatement': 64,
+    'MemberAccess': 65, # Call -> name = <operator>.indirectFieldAccess (possibly)
+    'ExpressionStatement': 66,
+    'ForStatement': 67, #ControlStructure -> controlStructureType = "FOR"
+    'InitializerList': 68,
+    'ElseStatement': 69, #ControlStructure -> controlStructureType = "ELSE"
+    'ExternalFunction': 70,
+    'ExternalReturnType': 71,
+    'ExternalParameter': 72,
+    'MemoryAlloc': 73,
+    'Local': 74,
+    'Modifier': 75,
+    'Unknown': 76
 }
 
 type_one_hot = np.eye(len(type_map))
 
 edgeType_full = {
-    'IS_AST_PARENT': 1,
-    'IS_CLASS_OF': 2,
-    'FLOWS_TO': 3,
-    'DEF': 4,
-    'USE': 5,
-    'REACHES': 6,
-    'CONTROLS': 7,
-    'DECLARES': 8,
-    'DOM': 9,
-    'POST_DOM': 10,
-    'IS_FUNCTION_OF_AST': 11,
-    'IS_FUNCTION_OF_CFG': 12
+    'IS_AST_PARENT': 1, # AST
+    'AST': 1,
+    'IS_CLASS_OF': 2, # No equivalent (maybe  CONTAINS?)
+    'FLOWS_TO': 3, # CFG
+    'CFG': 3,
+    'DEF': 4, # No equivalent (Superceded by REACHING_DEF)
+    'USE': 5,  # No equivalent (Superceded by REACHING_DEF)
+    'REACHES': 6, # REACHING_DEF
+    'REACHING_DEF': 6,
+    'CONTROLS': 7, # CDG
+    'CDG': 7,
+    'DECLARES': 8, # BINDS/AST/CONTAINS
+    'DOM': 9, # DOMINATE
+    'POST_DOM': 10, # POST_DOMINATE
+    'POST_DOMINATE': 10,
+    'IS_FUNCTION_OF_AST': 11, # AST
+    'IS_FUNCTION_OF_CFG': 12, # CFG
+}
+
+new_edgeType_full = {
+    'AST': 1,
+    'CALL': 2,
+    'CFG': 3,
+    'EVAL_TYPE': 4,
+    'POST_DOMINATE': 5,
+    'DOMINATE': 6,
+    'REACHING_DEF': 7,
+    'CDG': 8,
+    'CONTAINS': 9,
+    'BINDS': 10,
+    'SOURCE_FILE': 11,
+    'REF': 12,
+    'PARAMETER_LINK': 13,
+    'CONDITION': 14,
+    'RECEIVER': 15,
+    'CAPTURE': 16,
+    'ALIAS_OF': 17,
+    'IMPORTS': 18
 }
 
 edgeType_control = {
     'FLOWS_TO': 3,  # Control Flow
     'CONTROLS': 7,  # Control Dependency edge
+}
+
+new_edgeType_control = {
+    'CFG': 3,  
+    'CDG': 8,  
 }
 
 edgeType_data = {
@@ -194,10 +268,21 @@ edgeType_data = {
     'REACHES': 6,
 }
 
+new_edgeType_data = {
+    'REACHING_DEF': 7,  # Old REACHES
+}
+
 edgeType_control_data = {
     'DEF': 4,
     'USE': 5,
     'REACHES': 6,
     'FLOWS_TO': 3,  # Control Flow
     'CONTROLS': 7,  # Control Dependency edge
+}
+
+
+new_edgeType_control_data = {
+    'REACHING_DEF': 7,  # Old REACHES
+    'CFG': 3,  
+    'CDG': 8,  
 }
