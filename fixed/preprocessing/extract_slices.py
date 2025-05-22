@@ -389,12 +389,12 @@ def reformat_code_line_graph(code_lines, adjacency_lists, wv_model_original, lab
 ############################################
 
 
-def process_slices(files, split_dir, parsed, old_joern=True):
+def process_slices(files, split_dir, parsed, old_joern=True, get_edited_lines=False):
     # Note: This code snippet iterates over a list of file names. For each file, 
-# it reads the corresponding code text, parses node and edge information, 
-# extracts various line sets (call, array, pointer, arithmetic), creates 
-# forward/backward slices, tokenises the code, and then stores the results 
-# in a data structure for further analysis.
+    # it reads the corresponding code text, parses node and edge information, 
+    # extracts various line sets (call, array, pointer, arithmetic), creates 
+    # forward/backward slices, tokenises the code, and then stores the results 
+    # in a data structure for further analysis.
     all_data = []
 
     total_calls = 0
@@ -434,7 +434,6 @@ def process_slices(files, split_dir, parsed, old_joern=True):
         # Construct file paths for nodes and edges CSV files
         nodes_file_path = parsed + file_name.strip() + '.c/nodes.csv'
         edges_file_path = parsed + file_name.strip() + '.c/edges.csv'
-
         # Open the nodes file to read data as dictionaries
         try:
             nc = open(nodes_file_path)
@@ -504,6 +503,18 @@ def process_slices(files, split_dir, parsed, old_joern=True):
                 if line_no > 0:
                     arithmatic_lines.add(line_no)
         
+        if get_edited_lines:
+            edited_lines_file_path = parsed + file_name.strip() + '.c/changes.json'
+            edited_lines_list = []
+            with open(edited_lines_file_path) as edited_lines_json:
+                edited_lines = json.load(edited_lines_json)
+                for line in edited_lines[0]["located_lines"]:
+                    if line["file_line_no"] is not None:
+                        edited_lines_list.append(line["file_line_no"])
+            edited_lines_list.sort()
+            print(edited_lines_list)
+
+        
         # Re-read nodes and edges using read_csv for further processing
         if old_joern:
             nodes = utils.read_csv(nodes_file_path, delimiter="\t")
@@ -567,9 +578,6 @@ def process_slices(files, split_dir, parsed, old_joern=True):
             
             # Create a unique key representing this slice
             key = ' '.join([str(i) for i in all_slice_lines if i <= slice_ln])
-            #print(f"Slice line: {slice_ln}, Key: {key}")
-            #print(backward_sliced_lines)
-            #print(combined_graph)
 
             # If this particular slice hasn't been seen before, store it
             if key not in _keys:
@@ -647,39 +655,71 @@ def process_slices(files, split_dir, parsed, old_joern=True):
             continue
 
         # Construct a data instance with all curated information
-        data_instance = {
-            'file_path': split_dir + file_name.strip(),
-            'code': code_text,
-            'tokenized': t_code,
-            'call_slices_vd': call_slices,
-            'call_slices_sy': call_slices_bdir,
-            'array_slices_vd': array_slices,
-            'array_slices_sy': array_slices_bdir,
-            'arith_slices_vd': arith_slices,
-            'arith_slices_sy': arith_slices_bdir,
-            'ptr_slices_vd': ptr_slices,
-            'ptr_slices_sy': ptr_slices_bdir,
-            'label': int(label)
-        }
+        if get_edited_lines:
+            data_instance = {
+                'file_path': split_dir + file_name.strip(),
+                'code': code_text,
+                'tokenized': t_code,
+                'call_slices_vd': call_slices,
+                'call_slices_sy': call_slices_bdir,
+                'array_slices_vd': array_slices,
+                'array_slices_sy': array_slices_bdir,
+                'arith_slices_vd': arith_slices,
+                'arith_slices_sy': arith_slices_bdir,
+                'ptr_slices_vd': ptr_slices,
+                'ptr_slices_sy': ptr_slices_bdir,
+                'diff_slices_vd': [edited_lines_list],
+                'label': int(label)
+            }
+        else:
+            data_instance = {
+                'file_path': split_dir + file_name.strip(),
+                'code': code_text,
+                'tokenized': t_code,
+                'call_slices_vd': call_slices,
+                'call_slices_sy': call_slices_bdir,
+                'array_slices_vd': array_slices,
+                'array_slices_sy': array_slices_bdir,
+                'arith_slices_vd': arith_slices,
+                'arith_slices_sy': arith_slices_bdir,
+                'ptr_slices_vd': ptr_slices,
+                'ptr_slices_sy': ptr_slices_bdir,
+                'label': int(label)
+            }
         
         # Add the data instance to the global collection
         all_data.append(data_instance)
         total_calls += len(call_slices)
         total_arrays += len(array_slices)
         total_ops += len(arith_slices)
-        # Print a progress report every 1000 files
+        # Print a progress report every 100 files
         if i % 100 == 0:
-            print(
-                i,
-                file_name,
-                len(call_slices),
-                len(call_slices_bdir),
-                len(array_slices),
-                len(array_slices_bdir),
-                len(arith_slices),
-                len(arith_slices_bdir),
-                sep='\t'
-            )
+            if get_edited_lines:
+                print(
+                    i,
+                    file_name,
+                    len(call_slices),
+                    len(call_slices_bdir),
+                    len(array_slices),
+                    len(array_slices_bdir),
+                    len(arith_slices),
+                    len(arith_slices_bdir),
+                    len([edited_lines_list]), # Should always be 1
+                    sep='\t'
+                )
+            else:
+                print(
+                    i,
+                    file_name,
+                    len(call_slices),
+                    len(call_slices_bdir),
+                    len(array_slices),
+                    len(array_slices_bdir),
+                    len(arith_slices),
+                    len(arith_slices_bdir),
+                    sep='\t'
+                )
+
             print(f"Total Calls: {total_calls}, Total Arrays: {total_arrays}, Total Ops: {total_ops}")
     print(f"Total Calls: {total_calls}, Total Arrays: {total_arrays}, Total Ops: {total_ops}")
     return all_data
@@ -874,15 +914,15 @@ def extract_line_graph_data(
 
 if __name__ == "__main__":
 
-    old_info = fq_info
+    #old_info = fq_info
 
-    data = process_slices(old_info.files, old_info.split_dir, old_info.parsed, old_joern=True)
+    #data = process_slices(old_info.files, old_info.split_dir, old_info.parsed, old_joern=True)
 
-    new_info = new_fq_info
+    new_info = new_fq_test
 
     print("="*75)
 
-    data = process_slices(new_info.files, new_info.split_dir, new_info.parsed, old_joern=False)
+    data = process_slices(new_info.files, new_info.split_dir, new_info.parsed, old_joern=False, get_edited_lines=True)
 
     #with open(info.json_file_path, 'w') as f:
     #    json.dump(data, f)
