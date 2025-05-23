@@ -245,8 +245,6 @@ class MetricLearningModel(nn.Module):
         # return train_losses
 
 
-
-
     def predict_model(self, iterator_function, _batch_count, cuda_device):
         probs = self.predict_proba(iterator_function, _batch_count, cuda_device)
         return np.argmax(probs, axis=-1)
